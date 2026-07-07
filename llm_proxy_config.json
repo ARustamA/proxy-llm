@@ -1,0 +1,107 @@
+{
+  "version": "1.0",
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8001,
+    "dev_autoreload": false
+  },
+  "listing_mode": "as_is",
+  "connections": [
+    {
+      "name": "deepseek",
+      "api_type": "open_ai",
+      "api_base": "https://api.deepseek.com/",
+      "api_key": "",
+      "model": "deepseek-v4-flash",
+      "enabled": true,
+      "reasoning_effort": "high",
+      "thinking": true
+    },
+    {
+      "name": "moonshot",
+      "api_type": "open_ai",
+      "api_base": "https://api.moonshot.ai/v1/",
+      "api_key": "",
+      "model": "kimi-k2-0905-preview",
+      "enabled": true,
+      "reasoning_effort": null,
+      "thinking": false
+    },
+    {
+      "name": "minimax",
+      "api_type": "open_ai",
+      "api_base": "https://api.minimax.io/v1",
+      "api_key": "",
+      "model": "MiniMax-M3",
+      "enabled": true,
+      "reasoning_effort": null,
+      "thinking": false
+    },
+    {
+      "name": "local",
+      "api_type": "open_ai",
+      "api_base": "http://localhost:10002/v1",
+      "api_key": "123",
+      "model": "qwen3.6",
+      "enabled": true,
+      "reasoning_effort": "medium",
+      "thinking": false
+    },
+    {
+      "name": "xiaomi",
+      "api_type": "open_ai",
+      "api_base": "https://token-plan-sgp.xiaomimimo.com/v1",
+      "api_key": "",
+      "model": "mimo-v2.5-pro",
+      "enabled": true,
+      "reasoning_effort": "high",
+      "thinking": true
+    }
+  ],
+  "routing": [
+    {
+      "model_pattern": "deepseek-v4-pro",
+      "connection": "deepseek",
+      "target_model": "deepseek-v4-pro"
+    },
+    {
+      "model_pattern": "deepseek-v4-flash",
+      "connection": "deepseek",
+      "target_model": "deepseek-v4-flash"
+    },
+    {
+      "model_pattern": "kimi-k2-0905-preview",
+      "connection": "moonshot",
+      "target_model": "kimi-k2-0905-preview"
+    },
+    {
+      "model_pattern": "MiniMax-M3",
+      "connection": "minimax",
+      "target_model": "MiniMax-M3"
+    },
+    {
+      "model_pattern": "MiniMax-M2.7",
+      "connection": "minimax",
+      "target_model": "MiniMax-M2.7"
+    },
+    {
+      "model_pattern": "local",
+      "connection": "local",
+      "target_model": "qwen3.6"
+    },
+    {
+      "model_pattern": "mimo-v2.5-pro",
+      "connection": "xiaomi",
+      "target_model": "mimo-v2.5-pro"
+    }
+  ],
+  "groups": [
+    {
+      "name": "default",
+      "api_keys": [
+        "YOUR_API_KEY_HERE"
+      ],
+      "allowed_connections": "*"
+    }
+  ]
+}
