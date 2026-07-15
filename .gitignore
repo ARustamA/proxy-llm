@@ -16,3 +16,7 @@ __pycache__/
 logs/
 
 node_modules/
+
+.venv/
+proxy_config.toml
+llm_proxy_config.json

@@ -76,16 +76,21 @@ class ProxyServer:
         cmd = ["llm-proxy-server", "--config", config_path]
         if debug:
             cmd.append("--debug")
-        self.process = subprocess.Popen(
-            ["llm-proxy-server", "--config", config_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            creationflags=creationflags,
-            cwd=os.path.dirname(os.path.abspath(__file__)),
-        )
-        threading.Thread(target=self._read_output, daemon=True).start()
+        try:
+            self.process = subprocess.Popen(
+                ["llm-proxy-server", "--config", config_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                creationflags=creationflags,
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+            )
+            threading.Thread(target=self._read_output, daemon=True).start()
+        except FileNotFoundError:
+            self._running = False
+            self.process = None
+            print("llm-proxy-server not found. Install it or check PATH.")
 
     def force_kill_port(self):
         port = self.get_port()
@@ -1291,7 +1296,10 @@ def main():
     """Главная функция."""
     root = tk.Tk()
     app = LLMGuiApp(root)
-    root.mainloop()
+    try:
+        root.mainloop()
+    except KeyboardInterrupt:
+        app._on_close()
 
 
 if __name__ == "__main__":
