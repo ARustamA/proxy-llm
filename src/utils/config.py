@@ -57,6 +57,7 @@ def config_to_dict(config: AppConfig) -> dict:
             "dev_autoreload": config.server.dev_autoreload,
         },
         "listing_mode": config.listing_mode,
+        "response_model": config.response_model,
         "connections": [
             {
                 "name": c.name,
@@ -94,6 +95,7 @@ def dict_to_config(d: dict) -> AppConfig:
     config = AppConfig()
     config.version = d.get("version", "1.0")
     config.listing_mode = d.get("listing_mode", "as_is")
+    config.response_model = d.get("response_model", "gpt-4o")
     
     server = d.get("server", {})
     config.server.host = server.get("host", "0.0.0.0")
@@ -180,6 +182,8 @@ def config_to_toml(config: AppConfig) -> str:
     lines.append(f'dev_autoreload = {str(config.server.dev_autoreload).lower()}')
     lines.append(f'model_listing_mode = "{config.listing_mode}"')
     lines.append('api_key_check = "lm_proxy.api_key_check.allow_all.AllowAll"')
+    if config.response_model:
+        lines.append(f'response_model = "{config.response_model}"')
     lines.append("")
     
     # Connections

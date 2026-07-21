@@ -50,6 +50,7 @@ class AppConfig:
     routing: list[RoutingRule] = field(default_factory=list)
     groups: list[Group] = field(default_factory=list)
     listing_mode: str = "as_is"
+    response_model: str = "gpt-4o"
 
 
 # Встроенные провайдеры
