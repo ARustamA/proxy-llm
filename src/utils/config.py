@@ -188,6 +188,8 @@ def config_to_toml(config: AppConfig) -> str:
     if config.connections:
         lines.append("[connections]")
         for conn in config.connections:
+            if not conn.api_key:
+                continue
             lines.append(f'[connections.{conn.name}]')
             lines.append(f'api_type = "{conn.api_type}"')
             if conn.api_base:
@@ -198,10 +200,12 @@ def config_to_toml(config: AppConfig) -> str:
             lines.append("")
 
     # Routing
+    active_conn_names = {c.name for c in config.connections if c.api_key}
     if config.routing:
         lines.append("[routing]")
         for route in config.routing:
-            lines.append(f'"{route.model_pattern}" = "{route.connection}.{route.target_model}"')
+            if route.connection in active_conn_names:
+                lines.append(f'"{route.model_pattern}" = "{route.connection}.{route.target_model}"')
         lines.append("")
     
     # Groups
