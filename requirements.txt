@@ -1,5 +1,13 @@
-tiktoken>=0.7.0
-pydantic>=2.12.5,<2.13.0
-httpx>=0.25.0
-llm-proxy-server==3.2.3
+tiktoken==0.12.0
+pydantic==2.10.6
+pydantic_core==2.27.2
+httpx==0.28.1
+llm-proxy-server==3.2.2
+ai-microcore==6.1.1
+openai==1.109.1
+fastapi==0.136.3
+starlette==1.1.0
+uvicorn==0.48.0
+anyio==4.13.0
+python-dotenv==0.21.1
 pyinstaller>=6.0.0
