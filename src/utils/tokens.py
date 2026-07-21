@@ -13,7 +13,7 @@ ENCODINGS = {
 }
 
 
-def get_encoding(encoding_name: str) -> Optional[tiktoken.Encoding]:
+def get_encoding(encoding_name: str) -> Optional["tiktoken.Encoding"]:
     """Получить объект кодировки по имени."""
     try:
         return tiktoken.get_encoding(encoding_name)
