@@ -197,18 +197,6 @@ def config_to_toml(config: AppConfig) -> str:
                 lines.append(f'model = "{conn.model}"')
             lines.append("")
 
-    # Default params
-    for conn in config.connections:
-        if conn.reasoning_effort or conn.thinking:
-            if not any(line.startswith("[default_params]") for line in lines):
-                lines.append("[default_params]")
-            lines.append(f'[default_params.{conn.name}]')
-            if conn.reasoning_effort:
-                lines.append(f'reasoning_effort = "{conn.reasoning_effort}"')
-            if conn.thinking:
-                lines.append('thinking = true')
-            lines.append("")
-    
     # Routing
     if config.routing:
         lines.append("[routing]")
