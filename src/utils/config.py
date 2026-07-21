@@ -182,8 +182,6 @@ def config_to_toml(config: AppConfig) -> str:
     lines.append(f'dev_autoreload = {str(config.server.dev_autoreload).lower()}')
     lines.append(f'model_listing_mode = "{config.listing_mode}"')
     lines.append('api_key_check = "lm_proxy.api_key_check.allow_all.AllowAll"')
-    if config.response_model:
-        lines.append(f'response_model = "{config.response_model}"')
     lines.append("")
     
     # Connections
