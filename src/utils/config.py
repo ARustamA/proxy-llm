@@ -2,23 +2,70 @@
 
 import json
 import os
+import re
+import sys
+from pathlib import Path
 from typing import Optional
 
 from src.models import AppConfig, Provider, RoutingRule, Group
 
 
-DEFAULT_CONFIG_PATH = "llm_proxy_config.json"
+_BARE_TOML_KEY_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def toml_key(key: str) -> str:
+    if _BARE_TOML_KEY_RE.match(key):
+        return key
+    return '"' + key.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def toml_str(value: str) -> str:
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+APP_NAME = "ProxyLLM"
+CONFIG_DIR_ENV = "LLM_PROXY_CONFIG_DIR"
+DEFAULT_CONFIG_FILENAME = "llm_proxy_config.json"
+
+
+def get_app_data_dir() -> str:
+    custom_dir = os.environ.get(CONFIG_DIR_ENV)
+    if custom_dir:
+        return str(Path(custom_dir).expanduser().resolve())
+
+    if os.name == "nt":
+        windows_dir = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+        if windows_dir:
+            return str(Path(windows_dir) / APP_NAME)
+
+    config_home = os.environ.get("XDG_CONFIG_HOME")
+    base_dir = Path(config_home).expanduser() if config_home else Path.home() / ".config"
+    return str(base_dir / APP_NAME)
+
+
+def get_bundled_default_config_path() -> str:
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        base_dir = Path(sys._MEIPASS)
+    else:
+        base_dir = Path(__file__).resolve().parents[2]
+    return str(base_dir / DEFAULT_CONFIG_FILENAME)
 
 
 def get_default_config_path() -> str:
     """Получить путь к конфигурации по умолчанию."""
-    return DEFAULT_CONFIG_PATH
+    return str(Path(get_app_data_dir()) / DEFAULT_CONFIG_FILENAME)
 
 
 def create_default_config() -> AppConfig:
     """Создать конфигурацию по умолчанию."""
+    bundled_path = get_bundled_default_config_path()
+    try:
+        with open(bundled_path, "r", encoding="utf-8") as f:
+            return dict_to_config(json.load(f))
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+
     config = AppConfig()
-    # Добавляем встроенные провайдеры как отключенные по умолчанию
     config.connections.append(Provider(
         name="deepseek", 
         api_type="open_ai", 
@@ -142,8 +189,9 @@ def save_config(config: AppConfig, filepath: Optional[str] = None) -> bool:
     
     try:
         config_dict = config_to_dict(config)
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
+        config_path = Path(filepath).expanduser()
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        with config_path.open('w', encoding='utf-8') as f:
             json.dump(config_dict, f, indent=2, ensure_ascii=False)
         
         return True
@@ -158,7 +206,9 @@ def load_config(filepath: Optional[str] = None) -> Optional[AppConfig]:
         filepath = get_default_config_path()
     
     if not os.path.exists(filepath):
-        return create_default_config()
+        config = create_default_config()
+        save_config(config, filepath)
+        return config
     
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -173,56 +223,67 @@ def load_config(filepath: Optional[str] = None) -> Optional[AppConfig]:
 def config_to_toml(config: AppConfig) -> str:
     """Преобразовать конфигурацию в формат TOML для llm-proxy-server."""
     lines = []
-    
+    enabled_connections = [c for c in config.connections if c.enabled]
+    enabled_names = {c.name for c in enabled_connections}
+
     # Server section
-    lines.append(f'host = "{config.server.host}"')
+    lines.append(f'host = {toml_str(config.server.host)}')
     lines.append(f'port = {config.server.port}')
     lines.append(f'dev_autoreload = {str(config.server.dev_autoreload).lower()}')
-    lines.append(f'model_listing_mode = "{config.listing_mode}"')
+    lines.append(f'model_listing_mode = {toml_str(config.listing_mode)}')
     lines.append('api_key_check = "lm_proxy.api_key_check.allow_all.AllowAll"')
     lines.append("")
-    
+
     # Connections
-    if config.connections:
+    if enabled_connections:
         lines.append("[connections]")
-        for conn in config.connections:
-            lines.append(f'[connections.{conn.name}]')
-            lines.append(f'api_type = "{conn.api_type}"')
+        for conn in enabled_connections:
+            lines.append(f'[connections.{toml_key(conn.name)}]')
+            if conn.api_type in ("open_ai", "custom"):
+                lines.append('class = "src.llm_connection.OpenAIConnection"')
+            else:
+                lines.append(f'api_type = {toml_str(conn.api_type)}')
             if conn.api_base:
-                lines.append(f'api_base = "{conn.api_base}"')
-            lines.append(f'api_key = "{conn.api_key}"')
+                lines.append(f'api_base = {toml_str(conn.api_base)}')
+            lines.append(f'api_key = {toml_str(conn.api_key)}')
             if conn.model:
-                lines.append(f'model = "{conn.model}"')
+                lines.append(f'model = {toml_str(conn.model)}')
             lines.append("")
 
-    # Default params
-    for conn in config.connections:
-        if conn.reasoning_effort or conn.thinking:
-            if not any(line.startswith("[default_params]") for line in lines):
-                lines.append("[default_params]")
-            lines.append(f'[default_params.{conn.name}]')
-            if conn.reasoning_effort:
-                lines.append(f'reasoning_effort = "{conn.reasoning_effort}"')
-            if conn.thinking:
+    default_connections = [
+        connection
+        for connection in enabled_connections
+        if connection.reasoning_effort or connection.thinking
+    ]
+    if default_connections:
+        lines.append('[[before]]')
+        lines.append('class = "src.server.ConnectionDefaultsHandler"')
+        lines.append("")
+        for connection in default_connections:
+            lines.append(f'[before.defaults.{toml_key(connection.name)}]')
+            if connection.reasoning_effort:
+                lines.append(f'reasoning_effort = {toml_str(connection.reasoning_effort)}')
+            if connection.thinking:
                 lines.append('thinking = true')
             lines.append("")
-    
+
     # Routing
-    if config.routing:
+    active_routing = [r for r in config.routing if r.connection in enabled_names]
+    if active_routing:
         lines.append("[routing]")
-        for route in config.routing:
-            lines.append(f'"{route.model_pattern}" = "{route.connection}.{route.target_model}"')
+        for route in active_routing:
+            lines.append(f'{toml_str(route.model_pattern)} = {toml_str(f"{route.connection}.{route.target_model}")}')
         lines.append("")
-    
+
     # Groups
     if config.groups:
         lines.append("[groups]")
         for group in config.groups:
-            lines.append(f'[groups.{group.name}]')
+            lines.append(f'[groups.{toml_key(group.name)}]')
             lines.append(f'api_keys = {json.dumps(group.api_keys)}')
-            lines.append(f'allowed_connections = "{group.allowed_connections}"')
+            lines.append(f'allowed_connections = {toml_str(group.allowed_connections)}')
             lines.append("")
-    
+
     return "\n".join(lines)
 
 

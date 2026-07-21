@@ -7,9 +7,9 @@ from typing import Optional
 # Доступные кодировки (имя -> описание)
 ENCODINGS = {
     "cl100k_base": "CL100K Base (GPT-4, GPT-3.5, GPT-4O)",
-    "o200k_base": "O200K Base (GPT-4O最新的)",
+    "o200k_base": "O200K Base (GPT-4O, новейшие)",
     "p50k_base": "P50K Base (Codex)",
-    "r50k_base": "R50K Base (早期 GPT模型)",
+    "r50k_base": "R50K Base (ранние GPT модели)",
 }
 
 

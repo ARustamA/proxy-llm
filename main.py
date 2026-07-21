@@ -22,6 +22,29 @@ from src.utils.test_connection import test_provider_sync
 from src.utils.test_universal import test_api_simple as universal_tester
 
 
+def install_clipboard_shortcuts(root: tk.Tk):
+    """Ctrl+C/V/X/A в полях ввода при русской раскладке клавиатуры и Caps Lock."""
+    pairs = (
+        (("A", "Cyrillic_ef", "Cyrillic_EF"), "<<SelectAll>>"),
+        (("C", "Cyrillic_es", "Cyrillic_ES"), "<<Copy>>"),
+        (("V", "Cyrillic_ve", "Cyrillic_VE"), "<<Paste>>"),
+        (("X", "Cyrillic_che", "Cyrillic_CHE"), "<<Cut>>"),
+    )
+
+    def make_handler(virtual):
+        def handler(event):
+            try:
+                event.widget.event_generate(virtual)
+            except tk.TclError:
+                pass
+            return "break"
+        return handler
+
+    for keysyms, virtual in pairs:
+        for keysym in keysyms:
+            root.bind_all(f"<Control-KeyPress-{keysym}>", make_handler(virtual))
+
+
 class ProxyServer:
     """Управление процессом llm-proxy-server."""
 
@@ -76,16 +99,28 @@ class ProxyServer:
         cmd = ["llm-proxy-server", "--config", config_path]
         if debug:
             cmd.append("--debug")
-        self.process = subprocess.Popen(
-            ["llm-proxy-server", "--config", config_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            creationflags=creationflags,
-            cwd=os.path.dirname(os.path.abspath(__file__)),
+        project_root = os.path.dirname(os.path.abspath(__file__))
+        env = os.environ.copy()
+        python_path = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = os.pathsep.join(
+            path for path in (project_root, python_path) if path
         )
-        threading.Thread(target=self._read_output, daemon=True).start()
+        try:
+            self.process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                creationflags=creationflags,
+                cwd=project_root,
+                env=env,
+            )
+            threading.Thread(target=self._read_output, daemon=True).start()
+        except FileNotFoundError:
+            self._running = False
+            self.process = None
+            print("llm-proxy-server not found. Install it or check PATH.")
 
     def force_kill_port(self):
         port = self.get_port()
@@ -95,8 +130,10 @@ class ProxyServer:
                 ["netstat", "-ano"], capture_output=True, text=True, timeout=5
             )
             for line in result.stdout.splitlines():
-                if f":{port}" in line and "LISTENING" in line:
-                    parts = re.split(r"\s+", line.strip())
+                if "LISTENING" not in line:
+                    continue
+                parts = re.split(r"\s+", line.strip())
+                if len(parts) >= 5 and parts[0].startswith("TCP") and parts[1].endswith(f":{port}"):
                     pid = parts[-1]
                     subprocess.run(["taskkill", "/f", "/pid", pid], capture_output=True)
                     return f"killed PID {pid} on port {port}"
@@ -145,6 +182,8 @@ class LLMGuiApp:
         self.root.title("LLM Proxy Server GUI")
         self.root.geometry("1000x700")
         self.root.minsize(900, 650)
+
+        install_clipboard_shortcuts(root)
 
         self.server = ProxyServer()
         self.server.add_log_callback(self._on_server_log)
@@ -416,7 +455,11 @@ class LLMGuiApp:
         if provider:
             dialog = ProviderDialog(self.root, title="Редактировать провайдера", provider=provider)
             if dialog.provider:
-                provider.name = dialog.provider.name
+                new_name = dialog.provider.name
+                if new_name != provider.name and any(p.name == new_name for p in self.config.connections):
+                    messagebox.showerror("Ошибка", f"Провайдер '{new_name}' уже существует")
+                    return
+                provider.name = new_name
                 provider.api_type = dialog.provider.api_type
                 provider.api_base = dialog.provider.api_base
                 provider.api_key = dialog.provider.api_key
@@ -749,22 +792,26 @@ class LLMGuiApp:
         self.host_entry = ttk.Entry(grid, width=30)
         self.host_entry.grid(row=0, column=1, sticky=tk.W, padx=5, pady=5)
         self.host_entry.insert(0, self.config.server.host)
-        
+        self.host_entry.bind("<FocusOut>", self.save_settings)
+
         ttk.Label(grid, text="Port:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=5)
         self.port_entry = ttk.Entry(grid, width=10)
         self.port_entry.grid(row=0, column=3, sticky=tk.W, padx=5, pady=5)
         self.port_entry.insert(0, str(self.config.server.port))
-        
+        self.port_entry.bind("<FocusOut>", self.save_settings)
+
         self.autoreload_var = tk.BooleanVar(value=self.config.server.dev_autoreload)
-        ttk.Checkbutton(grid, text="Автоперезагрузка (dev)", variable=self.autoreload_var).grid(
+        ttk.Checkbutton(grid, text="Автоперезагрузка (dev)", variable=self.autoreload_var,
+                        command=self.save_settings).grid(
             row=1, column=0, columnspan=2, sticky=tk.W, padx=5, pady=5)
-        
+
         # Model listing
         ttk.Label(grid, text="Mode listing:").grid(row=1, column=2, sticky=tk.W, padx=5, pady=5)
         self.listing_combo = ttk.Combobox(grid, values=["as_is", "ignore_wildcards", "expand_wildcards"],
                                      state='readonly', width=15)
         self.listing_combo.grid(row=1, column=3, sticky=tk.W, padx=5, pady=5)
         self.listing_combo.set(self.config.listing_mode)
+        self.listing_combo.bind("<<ComboboxSelected>>", self.save_settings)
         
         # Save button
         ttk.Button(server_frame, text="Сохранить настройки", command=self.save_settings).pack(pady=10)
@@ -931,17 +978,36 @@ class LLMGuiApp:
     def _on_close(self):
         if hasattr(self, "_status_timer"):
             self.root.after_cancel(self._status_timer)
+        if hasattr(self, "_apply_config_timer"):
+            self.root.after_cancel(self._apply_config_timer)
+        save_config(self.config, self.config_path)
         self.server.stop()
         self.root.destroy()
 
-    def save_settings(self):
+    def save_settings(self, *_):
         """Сохранить настройки."""
-        self.config.server.host = self.host_entry.get()
-        self.config.server.port = int(self.port_entry.get())
-        self.config.server.dev_autoreload = self.autoreload_var.get()
-        self.config.listing_mode = self.listing_combo.get()
-        
-        # Auto-save - called in set_status already
+        host = self.host_entry.get().strip()
+        if not host:
+            self.set_status("Ошибка: host не может быть пустым")
+            return
+        try:
+            port = int(self.port_entry.get().strip())
+        except ValueError:
+            self.set_status("Ошибка: порт должен быть числом")
+            return
+        if not (1 <= port <= 65535):
+            self.set_status("Ошибка: порт должен быть в диапазоне 1-65535")
+            return
+
+        new_values = (host, port, self.autoreload_var.get(), self.listing_combo.get())
+        old_values = (self.config.server.host, self.config.server.port,
+                      self.config.server.dev_autoreload, self.config.listing_mode)
+        if new_values == old_values:
+            return
+
+        (self.config.server.host, self.config.server.port,
+         self.config.server.dev_autoreload, self.config.listing_mode) = new_values
+
         self.set_status("Настройки сохранены")
         self._on_config_changed()
 
@@ -957,6 +1023,7 @@ class LLMGuiApp:
         self.refresh_providers_tree()
         self.refresh_routing_tree()
         self.refresh_groups_tree()
+        self._refresh_settings()
         self.set_status(f"Загружена конфигурация: {self.config_path}")
     
     def new_config(self):
@@ -964,8 +1031,21 @@ class LLMGuiApp:
         if messagebox.askyesno("Новая конфигурация", "Создать новую конфигурацию? Несохранённые изменения будут потеряны."):
             self.config = create_default_config()
             self.config_path = get_default_config_path()
-            self.load_current_config()
+            self.refresh_providers_tree()
+            self.refresh_routing_tree()
+            self.refresh_groups_tree()
+            self._refresh_settings()
             self.set_status("Создана новая конфигурация")
+            self._on_config_changed()
+
+    def _refresh_settings(self):
+        """Обновить поля вкладки настроек из текущей конфигурации."""
+        self.host_entry.delete(0, tk.END)
+        self.host_entry.insert(0, self.config.server.host)
+        self.port_entry.delete(0, tk.END)
+        self.port_entry.insert(0, str(self.config.server.port))
+        self.autoreload_var.set(self.config.server.dev_autoreload)
+        self.listing_combo.set(self.config.listing_mode)
     
     def open_config(self):
         """Открыть конфигурацию."""
@@ -1030,7 +1110,6 @@ class LLMGuiApp:
     
     def set_status(self, message: str):
         self.status_label.config(text=message)
-        save_config(self.config, self.config_path)
 
     def _on_config_changed(self):
         if hasattr(self, "_apply_config_timer"):
@@ -1038,6 +1117,7 @@ class LLMGuiApp:
         self._apply_config_timer = self.root.after(800, self._apply_config)
 
     def _apply_config(self):
+        save_config(self.config, self.config_path)
         if self.server.is_running:
             self.server.restart(self.config, debug=self.debug_mode.get())
             self._log("Server restarted due to config change")
@@ -1291,7 +1371,10 @@ def main():
     """Главная функция."""
     root = tk.Tk()
     app = LLMGuiApp(root)
-    root.mainloop()
+    try:
+        root.mainloop()
+    except KeyboardInterrupt:
+        app._on_close()
 
 
 if __name__ == "__main__":

@@ -142,7 +142,7 @@ class ConnectionTester:
                     elif chat_response.status_code == 400:
                         return False, f"Требуется модель: {chat_response.text[:100]}"
                         
-                return False, "Не удалось подключиться (试试йте chat endpoint)"
+                return False, "Не удалось подключиться (попробуйте chat endpoint)"
                     
         except httpx.TimeoutException:
             return False, "Таймаут соединения"
@@ -292,9 +292,10 @@ class ConnectionTester:
         if api_key.startswith("env:"):
             import os
             env_var = api_key[4:]
-            api_key = os.environ.get(env_var, api_key)
-            if api_key == env_var:
+            resolved = os.environ.get(env_var)
+            if not resolved:
                 return False, f"Переменная {env_var} не найдена"
+            api_key = resolved
         
         # Check for obvious placeholders
         if api_key in ("", "sk-", "sk-.", "sk-.."):

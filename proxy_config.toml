@@ -6,44 +6,52 @@ api_key_check = "lm_proxy.api_key_check.allow_all.AllowAll"
 
 [connections]
 [connections.deepseek]
-api_type = "open_ai"
+class = "src.llm_connection.OpenAIConnection"
 api_base = "https://api.deepseek.com/"
 api_key = "sk-ed1bfdd4acd94dd6b3b122be5dedf9d2"
 model = "deepseek-v4-flash"
 
 [connections.moonshot]
-api_type = "open_ai"
+class = "src.llm_connection.OpenAIConnection"
 api_base = "https://api.moonshot.ai/v1/"
 api_key = ""
-model = "kimi-k2-0905-preview"
+model = "kimi-k2.7-code"
 
 [connections.minimax]
-api_type = "open_ai"
+class = "src.llm_connection.OpenAIConnection"
 api_base = "https://api.minimax.io/v1"
 api_key = ""
 model = "MiniMax-M3"
 
 [connections.local]
-api_type = "open_ai"
+class = "src.llm_connection.OpenAIConnection"
 api_base = "http://localhost:10002/v1"
 api_key = "123"
 model = "qwen3.6"
 
 [connections.xiaomi]
-api_type = "open_ai"
+class = "src.llm_connection.OpenAIConnection"
 api_base = "https://token-plan-sgp.xiaomimimo.com/v1"
 api_key = ""
 model = "mimo-v2.5-pro"
 
-[default_params]
-[default_params.deepseek]
-reasoning_effort = "high"
+[connections."moonshot coding plan"]
+class = "src.llm_connection.OpenAIConnection"
+api_base = "https://api.kimi.com/coding/v1"
+api_key = ""
+model = "kimi-for-coding"
+
+[[before]]
+class = "src.server.ConnectionDefaultsHandler"
+
+[before.defaults.deepseek]
+reasoning_effort = "max"
 thinking = true
 
-[default_params.local]
+[before.defaults.local]
 reasoning_effort = "medium"
 
-[default_params.xiaomi]
+[before.defaults.xiaomi]
 reasoning_effort = "high"
 thinking = true
 
@@ -55,6 +63,10 @@ thinking = true
 "MiniMax-M2.7" = "minimax.MiniMax-M2.7"
 "local" = "local.qwen3.6"
 "mimo-v2.5-pro" = "xiaomi.mimo-v2.5-pro"
+"MiniMax-M2.7-highspeed" = "minimax.MiniMax-M2.7-highspeed"
+"kimi-k2.7" = "moonshot coding plan.kimi-for-coding"
+"kimi-k2.7-highspeed" = "moonshot coding plan.kimi-for-coding-highspeed"
+"kimi-k3" = "moonshot coding plan.k3"
 
 [groups]
 [groups.default]
