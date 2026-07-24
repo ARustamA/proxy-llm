@@ -15,6 +15,7 @@ class Provider:
     enabled: bool = True
     reasoning_effort: Optional[str] = None  # low/medium/high/max (DeepSeek thinking)
     thinking: bool = False  # DeepSeek thinking mode toggle
+    temperature: Optional[float] = None  # принудительная температура (override запроса клиента)
 
 
 @dataclass

@@ -1,6 +1,7 @@
 class ConnectionDefaultsHandler:
-    def __init__(self, defaults=None):
+    def __init__(self, defaults=None, force=None):
         self.defaults = defaults or {}
+        self.force = force or {}
 
     def __call__(self, context):
         params = context.llm_params
@@ -11,6 +12,9 @@ class ConnectionDefaultsHandler:
                 continue
             if params.get(name) is None:
                 params[name] = value
+
+        for name, value in self.force.get(context.connection, {}).items():
+            params[name] = value
 
         if params.pop("thinking", False):
             extra = params.get("extra_body") or {}

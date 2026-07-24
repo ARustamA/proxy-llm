@@ -20,12 +20,13 @@
     {
       "name": "moonshot",
       "api_type": "open_ai",
-      "api_base": "https://api.moonshot.ai/v1/",
+      "api_base": "https://api.kimi.com/coding/v1",
       "api_key": "",
-      "model": "kimi-k2-0905-preview",
+      "model": "k3",
       "enabled": true,
-      "reasoning_effort": null,
-      "thinking": false
+      "reasoning_effort": "max",
+      "thinking": true,
+      "temperature": 1.0
     },
     {
       "name": "minimax",
@@ -70,9 +71,9 @@
       "target_model": "deepseek-v4-flash"
     },
     {
-      "model_pattern": "kimi-k2-0905-preview",
+      "model_pattern": "kimi-for-coding",
       "connection": "moonshot",
-      "target_model": "kimi-k2-0905-preview"
+      "target_model": "k3"
     },
     {
       "model_pattern": "MiniMax-M3",

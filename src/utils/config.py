@@ -114,6 +114,7 @@ def config_to_dict(config: AppConfig) -> dict:
                 "enabled": c.enabled,
                 "reasoning_effort": c.reasoning_effort,
                 "thinking": c.thinking,
+                "temperature": c.temperature,
             }
             for c in config.connections
         ],
@@ -157,6 +158,7 @@ def dict_to_config(d: dict) -> AppConfig:
             enabled=c.get("enabled", True),
             reasoning_effort=c.get("reasoning_effort"),
             thinking=c.get("thinking", False),
+            temperature=c.get("temperature"),
         )
         for c in d.get("connections", [])
     ]
@@ -241,6 +243,8 @@ def config_to_toml(config: AppConfig) -> str:
             lines.append(f'[connections.{toml_key(conn.name)}]')
             if conn.api_type in ("open_ai", "custom"):
                 lines.append('class = "src.llm_connection.OpenAIConnection"')
+                lines.append(f'name = {toml_str(conn.name)}')
+                lines.append('log_requests = true')
             else:
                 lines.append(f'api_type = {toml_str(conn.api_type)}')
             if conn.api_base:
@@ -255,7 +259,12 @@ def config_to_toml(config: AppConfig) -> str:
         for connection in enabled_connections
         if connection.reasoning_effort or connection.thinking
     ]
-    if default_connections:
+    force_connections = [
+        connection
+        for connection in enabled_connections
+        if connection.temperature is not None
+    ]
+    if default_connections or force_connections:
         lines.append('[[before]]')
         lines.append('class = "src.server.ConnectionDefaultsHandler"')
         lines.append("")
@@ -265,6 +274,10 @@ def config_to_toml(config: AppConfig) -> str:
                 lines.append(f'reasoning_effort = {toml_str(connection.reasoning_effort)}')
             if connection.thinking:
                 lines.append('thinking = true')
+            lines.append("")
+        for connection in force_connections:
+            lines.append(f'[before.force.{toml_key(connection.name)}]')
+            lines.append(f'temperature = {float(connection.temperature)}')
             lines.append("")
 
     # Routing

@@ -23,7 +23,7 @@
 # Клонировать репозиторий
 git clone <url-репозитория>
 cd proxy-llm
-
+ 
 # Создать виртуальное окружение
 python -m venv .venv
 
@@ -33,7 +33,7 @@ python -m venv .venv
 # Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 # Установить зависимости (версии зафиксированы)
-pip install -r requirements.txt
+  pip install -r requirements.txt
 ```
 
 ## Запуск
